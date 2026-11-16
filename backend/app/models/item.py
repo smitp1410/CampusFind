@@ -9,10 +9,13 @@ class ItemType(str, enum.Enum):
     FOUND = "FOUND"
 
 class ItemStatus(str, enum.Enum):
+    PENDING = "PENDING"
     OPEN = "OPEN"
+    VERIFIED = "VERIFIED"
     MATCHED = "MATCHED"
     CLAIMED = "CLAIMED"
     RESOLVED = "RESOLVED"
+    REJECTED = "REJECTED"
     CLOSED = "CLOSED"
 
 class Item(Base):
@@ -30,7 +33,7 @@ class Item(Base):
     specific_location = Column(String(255), nullable=True)
     floor = Column(String(100), nullable=True)
     identifying_details = Column(Text, nullable=True)  # Sensitive or private marks
-    status = Column(String(30), default=ItemStatus.OPEN.value, index=True, nullable=False)
+    status = Column(String(30), default=ItemStatus.PENDING.value, index=True, nullable=False)
     storage_location = Column(String(255), nullable=True)  # Where found item is securely kept
     reporter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_sensitive = Column(Boolean, default=False)

@@ -20,24 +20,30 @@ export const StudentDashboard: React.FC = () => {
   const [myClaims, setMyClaims] = useState<Claim[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchDashboardData = async (showSpinner = false) => {
+    if (showSpinner) setIsLoading(true);
+    try {
+      const [itemsRes, matchesRes, claimsRes] = await Promise.all([
+        api.getMyItems(),
+        api.getMyMatches(),
+        api.getMyClaims(),
+      ]);
+      setMyItems(itemsRes);
+      setMyMatches(matchesRes);
+      setMyClaims(claimsRes);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+    } finally {
+      if (showSpinner) setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const [itemsRes, matchesRes, claimsRes] = await Promise.all([
-          api.getMyItems(),
-          api.getMyMatches(),
-          api.getMyClaims(),
-        ]);
-        setMyItems(itemsRes);
-        setMyMatches(matchesRes);
-        setMyClaims(claimsRes);
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchDashboardData();
+    fetchDashboardData(true);
+    const interval = setInterval(() => {
+      fetchDashboardData(false);
+    }, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   const lostCount = myItems.filter((i) => i.type === 'LOST').length;

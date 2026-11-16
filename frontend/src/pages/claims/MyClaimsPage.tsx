@@ -14,18 +14,24 @@ export const MyClaimsPage: React.FC = () => {
   const [claims, setClaims] = useState<Claim[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchClaims = async (showSpinner = false) => {
+    if (showSpinner) setIsLoading(true);
+    try {
+      const data = await api.getMyClaims();
+      setClaims(data);
+    } catch (err) {
+      console.error('Failed to load user claims:', err);
+    } finally {
+      if (showSpinner) setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchClaims = async () => {
-      try {
-        const data = await api.getMyClaims();
-        setClaims(data);
-      } catch (err) {
-        console.error('Failed to load user claims:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchClaims();
+    fetchClaims(true);
+    const interval = setInterval(() => {
+      fetchClaims(false);
+    }, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   return (

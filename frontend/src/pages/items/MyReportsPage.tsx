@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   FileText, PlusCircle, Search, Filter, MapPin, 
   Calendar, Tag, ArrowUpRight, Sparkles, CheckCircle2, 
-  Clock, ShieldAlert, AlertCircle, RefreshCw, Eye
+  Clock, ShieldAlert, AlertCircle, RefreshCw, Eye, KeyRound
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { Item, User } from '../../types';
@@ -20,21 +20,28 @@ export const MyReportsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
 
-  const fetchMyReports = async () => {
-    setIsLoading(true);
+  const fetchMyReports = async (showSpinner = false) => {
+    if (showSpinner) setIsLoading(true);
     try {
       const data = await api.getMyItems();
       setItems(data);
+      setLastSyncTime(new Date().toLocaleTimeString());
     } catch (err) {
       console.error('Failed to load my reports:', err);
     } finally {
-      setIsLoading(false);
+      if (showSpinner) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMyReports();
+    fetchMyReports(true);
+    // Real-time auto sync every 4 seconds so student sees approval instantly
+    const interval = setInterval(() => {
+      fetchMyReports(false);
+    }, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   const filteredItems = items.filter((item) => {
@@ -53,6 +60,7 @@ export const MyReportsPage: React.FC = () => {
 
   const lostCount = items.filter((i) => i.type === 'LOST').length;
   const foundCount = items.filter((i) => i.type === 'FOUND').length;
+  const pendingCount = items.filter((i) => i.status === 'PENDING' || i.status === 'OPEN').length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -72,8 +80,14 @@ export const MyReportsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Quick Report CTAs */}
-        <div className="flex items-center space-x-3">
+        {/* Live sync indicator & Quick Report CTAs */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center space-x-1.5 bg-campus-lime/30 text-campus-forest text-[11px] font-mono px-2.5 py-1.5 border border-campus-forest font-bold">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
+            <span>LIVE SYNC ACTIVE</span>
+            {lastSyncTime && <span className="text-[10px] text-campus-charcoal/60 ml-1">({lastSyncTime})</span>}
+          </div>
+
           <Button
             variant="outline"
             size="sm"
@@ -185,11 +199,22 @@ export const MyReportsPage: React.FC = () => {
             className="w-full sm:w-auto bg-campus-ivory border border-campus-charcoal/40 text-xs font-mono py-1.5 px-3 uppercase text-campus-charcoal focus:outline-none focus:border-campus-charcoal"
           >
             <option value="ALL">All Statuses</option>
+            <option value="PENDING">Under Admin Review</option>
+            <option value="VERIFIED">Verified & Active</option>
             <option value="OPEN">Open</option>
             <option value="MATCHED">Matched</option>
             <option value="CLAIMED">Claim In Progress</option>
             <option value="RESOLVED">Resolved / Returned</option>
           </select>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchMyReports(true)}
+            leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+          >
+            Refresh
+          </Button>
         </div>
       </div>
 
@@ -231,6 +256,8 @@ export const MyReportsPage: React.FC = () => {
             const claimsOnItem = item.claims || [];
             const hasPendingClaims = claimsOnItem.some((c) => c.status === 'PENDING' || c.status === 'UNDER_REVIEW');
             const hasApprovedClaim = claimsOnItem.some((c) => c.status === 'APPROVED');
+            const isPending = item.status === 'PENDING';
+            const isVerified = item.status === 'VERIFIED';
 
             return (
               <div
@@ -245,85 +272,112 @@ export const MyReportsPage: React.FC = () => {
                         {item.type}
                       </Badge>
                       <Badge variant={item.status.toLowerCase() as any}>
-                        {item.status}
+                        {isPending ? 'Under Review' : isVerified ? 'Verified & Active' : item.status}
                       </Badge>
                     </div>
                     <span className="font-mono text-xs text-campus-charcoal/60">
-                      ID: #{item.id}
+                      #{item.id}
                     </span>
                   </div>
 
-                  {/* Body with image & details */}
-                  <div className="mt-4 flex gap-4">
+                  {/* Body Content */}
+                  <div className="flex space-x-4 mt-4">
                     <img
                       src={primaryImage}
                       alt={item.title}
-                      className="w-24 h-24 sm:w-28 sm:h-28 object-cover border-2 border-campus-charcoal shrink-0"
+                      className="w-20 h-20 sm:w-24 sm:h-24 object-cover border-2 border-campus-charcoal shrink-0"
                     />
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      <h3 className="font-serif font-bold text-lg text-campus-charcoal line-clamp-1">
+
+                    <div className="flex-1 space-y-1 min-w-0">
+                      <h3 className="font-serif font-bold text-lg text-campus-charcoal leading-tight line-clamp-1">
                         {item.title}
                       </h3>
-                      <p className="text-xs text-campus-charcoal/70 line-clamp-2 leading-relaxed">
-                        {item.description}
-                      </p>
-                      <div className="font-mono text-[11px] text-campus-charcoal/70 flex flex-wrap gap-x-3 gap-y-1 pt-1">
-                        <span className="flex items-center">
-                          <MapPin className="w-3 h-3 mr-1 text-campus-forest shrink-0" />
-                          {item.location?.building_name} {item.floor ? `(${item.floor})` : ''}
-                        </span>
-                        <span className="flex items-center">
-                          <Calendar className="w-3 h-3 mr-1 text-campus-charcoal/50 shrink-0" />
-                          {new Date(item.date_occurred).toLocaleDateString()}
-                        </span>
+                      <div className="flex items-center text-xs font-mono text-campus-charcoal/70">
+                        <Tag className="w-3 h-3 mr-1" />
+                        <span>{item.category?.name || 'Item'} &bull; {item.color}</span>
+                      </div>
+                      <div className="flex items-center text-xs font-mono text-campus-charcoal/70">
+                        <MapPin className="w-3 h-3 mr-1 text-campus-forest" />
+                        <span className="truncate">{item.location?.building_name || 'Campus Grounds'}</span>
+                      </div>
+                      <div className="flex items-center text-xs font-mono text-campus-charcoal/60">
+                        <Calendar className="w-3 h-3 mr-1" />
+                        <span>{new Date(item.date_occurred).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Claims Notification Strip (For Found Items) */}
-                  {!isLost && claimsOnItem.length > 0 && (
-                    <div className="mt-4 p-3 bg-campus-lime/30 border border-campus-charcoal font-mono text-xs space-y-1">
-                      <div className="flex items-center justify-between font-bold text-campus-charcoal">
-                        <span>{claimsOnItem.length} Ownership Claim(s) Received</span>
-                        <span className="text-[10px] uppercase bg-campus-white px-2 py-0.5 border border-campus-charcoal">
-                          {hasApprovedClaim ? 'Approved' : hasPendingClaims ? 'Admin Verifying' : 'Reviewed'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-campus-charcoal/80 font-sans">
-                        Campus Safety is reviewing ownership proof. Once verified, physical handover is completed at the security desk.
-                      </p>
+                  {/* Dynamic Real-time Status Explanation Alert */}
+                  {isPending && (
+                    <div className="mt-3 p-2.5 bg-amber-50 border border-amber-300 text-[11px] font-mono text-amber-900 flex items-center space-x-2">
+                      <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                      <span><strong>Status: Pending Verification</strong> — Awaiting Super Admin review and ownership verification.</span>
                     </div>
                   )}
 
-                  {/* Matched Banner (For Lost Items) */}
-                  {isLost && item.status === 'MATCHED' && (
-                    <div className="mt-4 p-3 bg-campus-forest text-campus-ivory border border-campus-charcoal font-mono text-xs flex items-center justify-between">
+                  {isVerified && (
+                    <div className="mt-3 p-2.5 bg-emerald-50 border border-emerald-300 text-[11px] font-mono text-emerald-950 flex items-center space-x-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                      <span><strong>Status: Verified & Live</strong> — Approved by Campus Safety and actively scanned by the smart matching engine.</span>
+                    </div>
+                  )}
+
+                  {item.status === 'MATCHED' && (
+                    <div className="mt-3 p-2.5 bg-campus-lime/30 border border-campus-charcoal text-[11px] font-mono text-campus-charcoal flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <Sparkles className="w-4 h-4 text-campus-lime shrink-0" />
-                        <span>Potential item match detected by algorithm!</span>
+                        <Sparkles className="w-3.5 h-3.5 text-campus-forest shrink-0" />
+                        <span>Potential Smart Match identified!</span>
                       </div>
-                      <Link
-                        to="/matches"
-                        className="text-campus-lime font-bold hover:underline shrink-0 text-[11px] uppercase"
-                      >
-                        Review &rarr;
+                      <Link to="/matches" className="underline font-bold text-campus-forest hover:opacity-80">
+                        View Matches &rarr;
+                      </Link>
+                    </div>
+                  )}
+
+                  {item.status === 'CLAIMED' && (
+                    <div className="mt-3 p-2.5 bg-blue-50 border border-blue-300 text-[11px] font-mono text-blue-900 flex items-center space-x-2">
+                      <KeyRound className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                      <span>An ownership claim is currently being processed for this item.</span>
+                    </div>
+                  )}
+
+                  {item.status === 'RESOLVED' && (
+                    <div className="mt-3 p-2.5 bg-teal-50 border border-teal-300 text-[11px] font-mono text-teal-900 flex items-center space-x-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                      <span><strong>Resolved:</strong> Belonging returned to owner. Case closed.</span>
+                    </div>
+                  )}
+
+                  {/* Active Claim Badge on Found Items */}
+                  {!isLost && hasPendingClaims && (
+                    <div className="mt-3 p-2 bg-amber-50 border border-amber-300 text-xs font-mono text-amber-900 flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Claim pending admin verification</span>
+                      </div>
+                      <Link to="/claims" className="underline text-[11px] font-bold">
+                        Details &rarr;
                       </Link>
                     </div>
                   )}
                 </div>
 
-                {/* Footer Controls */}
-                <div className="pt-3 border-t border-campus-charcoal/10 flex items-center justify-between font-mono text-xs">
-                  <span className="text-campus-charcoal/50">
-                    Reported on {new Date(item.created_at).toLocaleDateString()}
+                {/* Bottom Card Actions */}
+                <div className="pt-3 border-t border-campus-charcoal/10 flex items-center justify-between text-xs font-mono">
+                  <span className="text-campus-charcoal/60">
+                    Reported: {new Date(item.created_at).toLocaleDateString()}
                   </span>
-                  <Link
-                    to={`/items/${item.id}`}
-                    className="font-bold text-campus-forest hover:underline flex items-center"
-                  >
-                    <span>View Full Dossier</span>
-                    <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
-                  </Link>
+
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/items/${item.id}`)}
+                      rightIcon={<ArrowUpRight className="w-3.5 h-3.5" />}
+                    >
+                      View Report
+                    </Button>
+                  </div>
                 </div>
               </div>
             );

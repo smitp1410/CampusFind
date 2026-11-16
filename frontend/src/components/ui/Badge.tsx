@@ -2,7 +2,7 @@ import React from 'react';
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'lost' | 'found' | 'open' | 'matched' | 'claimed' | 'resolved' | 'closed' | 'strong' | 'possible' | 'low' | 'neutral';
+  variant?: 'lost' | 'found' | 'open' | 'matched' | 'claimed' | 'resolved' | 'closed' | 'strong' | 'possible' | 'low' | 'neutral' | 'pending' | 'verified' | 'approved' | 'rejected';
   size?: 'sm' | 'md';
   className?: string;
 }
@@ -19,6 +19,10 @@ export const Badge: React.FC<BadgeProps> = ({
     lost: 'bg-campus-forest text-campus-ivory border-campus-forest',
     found: 'bg-campus-charcoal text-campus-lime border-campus-charcoal',
     open: 'bg-emerald-50 text-emerald-900 border-emerald-300',
+    pending: 'bg-amber-100 text-amber-900 border-amber-400 font-bold',
+    verified: 'bg-emerald-100 text-emerald-950 border-emerald-500 font-bold',
+    approved: 'bg-emerald-100 text-emerald-950 border-emerald-500 font-bold',
+    rejected: 'bg-red-100 text-red-900 border-red-400 font-bold',
     matched: 'bg-campus-lime/30 text-campus-charcoal border-campus-lime font-bold',
     claimed: 'bg-amber-50 text-amber-900 border-amber-300',
     resolved: 'bg-teal-900 text-campus-lime border-teal-800 font-semibold',

@@ -47,7 +47,7 @@ export interface ItemImage {
 }
 
 export type ItemType = 'LOST' | 'FOUND';
-export type ItemStatus = 'OPEN' | 'MATCHED' | 'CLAIMED' | 'RESOLVED' | 'CLOSED';
+export type ItemStatus = 'PENDING' | 'OPEN' | 'VERIFIED' | 'MATCHED' | 'CLAIMED' | 'RESOLVED' | 'REJECTED' | 'CLOSED';
 
 export interface Item {
   id: number;

@@ -9,6 +9,7 @@ from app.models.item import Item, ItemType, ItemStatus
 from app.models.claim import Claim, ClaimStatus
 from app.models.match import Match
 from app.models.audit_log import AuditLog
+from app.models.notification import Notification, NotificationType
 from app.schemas.user import UserResponse
 from app.schemas.item import ItemResponse
 from app.schemas.claim import ClaimResponse
@@ -25,6 +26,7 @@ def get_admin_stats(
     total_lost = db.query(Item).filter(Item.type == ItemType.LOST.value).count()
     total_found = db.query(Item).filter(Item.type == ItemType.FOUND.value).count()
     total_recovered = db.query(Item).filter(Item.status == ItemStatus.RESOLVED.value).count()
+    pending_items = db.query(Item).filter(Item.status == ItemStatus.PENDING.value).count()
     pending_claims = db.query(Claim).filter(Claim.status.in_([ClaimStatus.PENDING.value, ClaimStatus.UNDER_REVIEW.value])).count()
     active_matches = db.query(Match).filter(Match.score >= 50.0).count()
     
@@ -36,6 +38,7 @@ def get_admin_stats(
         "total_found": total_found,
         "total_recovered": total_recovered,
         "recovery_rate": recovery_rate,
+        "pending_items": pending_items,
         "pending_claims": pending_claims,
         "active_matches": active_matches
     }
@@ -132,7 +135,8 @@ def get_all_items_admin(
     if status:
         query = query.filter(Item.status == status.upper())
 
-    items = query.order_by(desc(Item.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+    # Order strictly by newest ID and newest created_at first!
+    items = query.order_by(desc(Item.id), desc(Item.created_at)).offset((page - 1) * page_size).limit(page_size).all()
     return items
 
 @router.put("/items/{item_id}/status", response_model=ItemResponse)
@@ -150,13 +154,26 @@ def update_item_status_admin(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found.")
 
+    old_status = item.status
     item.status = new_status.upper()
+
+    # Create notification for reporter
+    status_label = "VERIFIED & APPROVED" if new_status.upper() in ["VERIFIED", "OPEN"] else new_status.upper()
+    notif = Notification(
+        user_id=item.reporter_id,
+        title=f"Report Status: {status_label}",
+        message=f"Your {item.type} report for '{item.title}' is now {status_label} by Campus Safety administration.",
+        type=NotificationType.CLAIM_STATUS.value,
+        link=f"/items/{item.id}"
+    )
+    db.add(notif)
+
     audit = AuditLog(
         user_id=admin_user.id,
         action="MODERATE_ITEM_STATUS",
         target_type="item",
         target_id=item.id,
-        details=f"Admin {admin_user.email} changed item #{item.id} status to {new_status.upper()}"
+        details=f"Admin {admin_user.email} changed item #{item.id} status from {old_status} to {new_status.upper()}"
     )
     db.add(audit)
     db.commit()
@@ -180,7 +197,7 @@ def get_all_claims_admin(
     if status:
         query = query.filter(Claim.status == status.upper())
 
-    claims = query.order_by(desc(Claim.created_at)).all()
+    claims = query.order_by(desc(Claim.id), desc(Claim.created_at)).all()
     return claims
 
 @router.get("/audit-logs")

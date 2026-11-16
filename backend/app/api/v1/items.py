@@ -69,13 +69,15 @@ def get_items(
             )
         )
 
-    # Sorting
+    # Sorting: default to newest item ID first so latest submissions always show at the top
     if sort_by == "date_asc":
         query = query.order_by(asc(Item.date_occurred))
-    elif sort_by == "created_desc":
-        query = query.order_by(desc(Item.created_at))
+    elif sort_by == "date_desc":
+        query = query.order_by(desc(Item.date_occurred), desc(Item.id))
+    elif sort_by == "created_asc":
+        query = query.order_by(asc(Item.id))
     else:
-        query = query.order_by(desc(Item.date_occurred))
+        query = query.order_by(desc(Item.id))
 
     total = query.count()
     items = query.offset((page - 1) * page_size).limit(page_size).all()
@@ -109,8 +111,8 @@ def get_recent_lost_items(db: Session = Depends(get_db)):
         joinedload(Item.images)
     ).filter(
         Item.type == ItemType.LOST.value,
-        Item.status.in_([ItemStatus.OPEN.value, ItemStatus.MATCHED.value])
-    ).order_by(desc(Item.created_at)).limit(4).all()
+        Item.status.in_([ItemStatus.PENDING.value, ItemStatus.OPEN.value, ItemStatus.VERIFIED.value, ItemStatus.MATCHED.value])
+    ).order_by(desc(Item.id)).limit(6).all()
     return items
 
 @router.get("/recent-found", response_model=List[ItemResponse])
@@ -122,8 +124,8 @@ def get_recent_found_items(db: Session = Depends(get_db)):
         joinedload(Item.images)
     ).filter(
         Item.type == ItemType.FOUND.value,
-        Item.status.in_([ItemStatus.OPEN.value, ItemStatus.MATCHED.value])
-    ).order_by(desc(Item.created_at)).limit(4).all()
+        Item.status.in_([ItemStatus.PENDING.value, ItemStatus.OPEN.value, ItemStatus.VERIFIED.value, ItemStatus.MATCHED.value])
+    ).order_by(desc(Item.id)).limit(6).all()
     return items
 
 @router.get("/my-items", response_model=List[ItemResponse])
@@ -137,7 +139,7 @@ def get_my_items(
         joinedload(Item.reporter),
         joinedload(Item.images),
         joinedload(Item.claims)
-    ).filter(Item.reporter_id == current_user.id).order_by(desc(Item.created_at)).all()
+    ).filter(Item.reporter_id == current_user.id).order_by(desc(Item.id)).all()
     return items
 
 @router.get("/{item_id}", response_model=ItemResponse)
@@ -188,7 +190,7 @@ def create_item(
         floor=item_in.floor.strip() if item_in.floor else None,
         identifying_details=item_in.identifying_details.strip() if item_in.identifying_details else None,
         storage_location=item_in.storage_location.strip() if item_in.storage_location else None,
-        status=ItemStatus.OPEN.value,
+        status=ItemStatus.PENDING.value if current_user.role in [UserRole.STUDENT.value, UserRole.FACULTY.value] else ItemStatus.OPEN.value,
         reporter_id=current_user.id,
         is_sensitive=item_in.is_sensitive
     )
